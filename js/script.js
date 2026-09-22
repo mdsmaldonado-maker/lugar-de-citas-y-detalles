@@ -325,6 +325,10 @@
       if (amigos[i]) picks.push(amigos[i]);
     }
 
+    grid.innerHTML = picks.map(createIdeaCardHTML).join("");
+    grid.dataset.loading = "false";
+  }
+
   /* ============================================================
      6. FILAS REPETIBLES (actividades / materiales / pasos)
      ============================================================ */
