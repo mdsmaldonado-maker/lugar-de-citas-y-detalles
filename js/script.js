@@ -266,7 +266,10 @@
     const form = document.getElementById("hero-search-form");
     if (!form) return;
     const input = document.getElementById("hero-search");
-    const grid = document.getElementById("recommendations-grid");
+    const grid = document.getElementById("recommendations-grid")
+     const googleFallback = document.getElementById("google-fallback");
+    const googleLink = document.getElementById("google-fallback-link");
+    const googleQuerySpan = document.getElementById("google-fallback-query");
 
     document.querySelectorAll(".chip[data-query]").forEach((chip) => {
       chip.addEventListener("click", () => {
@@ -282,8 +285,16 @@
       const results = getAllIdeas().filter((i) => i.estado === "aprobada" && matchesQuery(i, q));
       grid.innerHTML = results.length
         ? results.map(createIdeaCardHTML).join("")
-        : `<p class="grid-empty-state">No encontramos ideas para "${escapeHtml(q)}". Prueba con otra palabra.</p>`;
+        : `<p class="grid-empty-state">No encontramos ideas para "${escapeHtml(q)}". Prueba con otra palabra o busca en Google.</p>`;
       grid.dataset.loading = "false";
+
+      // Conexión real a Google: siempre queda disponible como alternativa a la búsqueda interna
+      if (googleFallback && googleLink) {
+        googleLink.href = `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+        googleQuerySpan.textContent = q;
+        googleFallback.hidden = false;
+      }
+
       grid.scrollIntoView({ behavior: "smooth", block: "start" });
     });
 
@@ -296,10 +307,23 @@
     const grid = document.getElementById("recommendations-grid");
     if (!grid) return;
     const ideas = getAllIdeas().filter((i) => i.estado === "aprobada");
-    const picks = [...ideas].sort((a, b) => b.vistas - a.vistas).slice(0, 6);
-    grid.innerHTML = picks.map(createIdeaCardHTML).join("");
-    grid.dataset.loading = "false";
-  }
+    // Si el usuario inició sesión y eligió una categoría favorita en su perfil,
+    // le damos más espacio a esa categoría; si no, mezcla pareja al 50/50.
+    const auth = getAuth();
+    const favorita = auth && auth.categoriaFavorita;
+    const cantidadParejas = favorita === "parejas" ? 8 : favorita === "amigos" ? 4 : 6;
+    const cantidadAmigos = favorita === "amigos" ? 8 : favorita === "parejas" ? 4 : 6;
+
+    const porVistas = (a, b) => b.vistas - a.vistas;
+    const parejas = ideas.filter((i) => i.categoria === "parejas").sort(porVistas).slice(0, cantidadParejas);
+    const amigos = ideas.filter((i) => i.categoria === "amigos").sort(porVistas).slice(0, cantidadAmigos);
+
+    const picks = [];
+    const max = Math.max(parejas.length, amigos.length);
+    for (let i = 0; i < max; i++) {
+      if (parejas[i]) picks.push(parejas[i]);
+      if (amigos[i]) picks.push(amigos[i]);
+    }
 
   /* ============================================================
      6. FILAS REPETIBLES (actividades / materiales / pasos)
@@ -584,9 +608,10 @@
     addChecklistBtn.addEventListener("click", () => {
       const text = newItemInput.value.trim();
       if (!text) return;
+      const uniqueKey = `custom-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
       const li = document.createElement("li");
       li.className = "checklist-item";
-      li.innerHTML = `<label><input type="checkbox" name="checklist" value="${slugify(text)}"> ${escapeHtml(text)}</label>`;
+      li.innerHTML = `<label><input type="checkbox" name="checklist" value="${uniqueKey}"> ${escapeHtml(text)}</label>`;
       checklistList.appendChild(li);
       newItemInput.value = "";
       updateChecklistProgress();
@@ -726,12 +751,22 @@
 
         if (plan.completado) article.classList.add("is-completed");
 
+        const completarBtn = article.querySelector('[data-action="completar"]');
+        completarBtn.textContent = plan.completado ? "Reabrir" : "Completar";
+
         article.querySelector('[data-action="ver"]').addEventListener("click", () => showPlanSummary(plan));
         article.querySelector('[data-action="editar"]').addEventListener("click", () => {
           window.location.href = `planificador.html?planId=${plan.id}`;
         });
         article.querySelector('[data-action="completar"]').addEventListener("click", () => {
           updatePlan(plan.id, { completado: !plan.completado });
+          // Si el plan desaparecería de la pestaña actual (p. ej. "Próximos"),
+          // volvemos a "Todos" para que el usuario vea el cambio y pueda revertirlo.
+           tabs.forEach((t) => {
+            const isTodos = t.dataset.filter === "todos";
+            t.classList.toggle("is-active", isTodos);
+            t.setAttribute("aria-selected", String(isTodos));
+          });
           render();
         });
         article.querySelector('[data-action="eliminar"]').addEventListener("click", () => {
@@ -935,6 +970,306 @@
       confirmation.hidden = false;
       confirmation.scrollIntoView({ behavior: "smooth", block: "start" });
     });
+  }
+
+    /* ============================================================
+     12.5. LOGIN / CREAR CUENTA
+     ============================================================ */
+
+  const AUTH_KEY = "juntos:auth";
+  function getAuth() { return readJSON(AUTH_KEY, null); }
+  function setAuth(data) { writeJSON(AUTH_KEY, data); }
+  function clearAuth() { try { localStorage.removeItem(AUTH_KEY); } catch (e) {} }
+
+  function generateSuggestedPassword() {
+    // Combina una palabra, un número y un símbolo: fácil de recordar, difícil de adivinar.
+    const palabras = ["Sol", "Luna", "Rio", "Nube", "Flor", "Mar", "Viento", "Estrella", "Bosque", "Cielo"];
+    const simbolos = ["!", "_", "#", "."];
+    const palabra = palabras[Math.floor(Math.random() * palabras.length)];
+    const numero = Math.floor(10 + Math.random() * 90);
+    const simbolo = simbolos[Math.floor(Math.random() * simbolos.length)];
+    return `${palabra}${numero}${simbolo}Juntos`;
+  }
+
+  function passwordChecks(pw) {
+    return {
+      length: pw.length >= 8,
+      upper: /[A-ZÁÉÍÓÚÑ]/.test(pw),
+      number: /[0-9]/.test(pw),
+      symbol: /[^A-Za-z0-9]/.test(pw)
+    };
+  }
+
+  // Mostrar/ocultar contraseña: se puede llamar en cualquier página que tenga
+  // botones .password-toggle (login, registro o el formulario de perfil).
+  function wirePasswordToggles(root = document) {
+    root.querySelectorAll(".password-toggle").forEach((btn) => {
+      if (btn.dataset.wired) return;
+      btn.dataset.wired = "true";
+      btn.addEventListener("click", () => {
+        const input = document.getElementById(btn.dataset.toggleFor);
+        const isPw = input.type === "password";
+        input.type = isPw ? "text" : "password";
+        btn.textContent = isPw ? "🙈" : "👁";
+      });
+    });
+  }
+
+  // Requisitos en vivo de una contraseña sobre una lista <ul class="password-requirements">.
+  function wireLivePasswordRequirements(pwInputId, reqListId) {
+    const pwInput = document.getElementById(pwInputId);
+    const reqList = document.getElementById(reqListId);
+    if (!pwInput || !reqList) return;
+    pwInput.addEventListener("input", () => {
+      const checks = passwordChecks(pwInput.value);
+      Object.keys(checks).forEach((key) => {
+        const li = reqList.querySelector(`[data-req="${key}"]`);
+        if (li) li.classList.toggle("is-met", checks[key]);
+      });
+    });
+  }
+
+  // Generador de sugerencias de contraseña, reutilizable en registro y en perfil.
+  function wirePasswordSuggestions({ btnId, listId, pwInputId, confirmInputId }) {
+    const suggestBtn = document.getElementById(btnId);
+    const suggestList = document.getElementById(listId);
+    const pwInput = document.getElementById(pwInputId);
+    if (!suggestBtn || !suggestList || !pwInput) return;
+    suggestBtn.addEventListener("click", () => {
+      const suggestions = [generateSuggestedPassword(), generateSuggestedPassword(), generateSuggestedPassword()];
+      suggestList.innerHTML = suggestions.map((pw) => `
+        <button type="button" class="password-suggestion" data-password="${pw}">
+          <span>${pw}</span>
+          <span>Usar esta →</span>
+        </button>
+      `).join("");
+      suggestList.querySelectorAll(".password-suggestion").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const pw = btn.dataset.password;
+          pwInput.value = pw;
+          if (confirmInputId) document.getElementById(confirmInputId).value = pw;
+          pwInput.dispatchEvent(new Event("input"));
+        });
+      });
+    });
+  }
+
+  function initAuthPage() {
+    const loginForm = document.getElementById("login-form");
+    if (!loginForm) return; // solo existe en pages/login.html
+    const registerForm = document.getElementById("register-form");
+    const successPanel = document.getElementById("auth-success");
+    const tabs = document.querySelectorAll(".auth-tab, .auth-switch-link");
+
+    function showPanel(name) {
+      loginForm.hidden = name !== "login";
+      registerForm.hidden = name !== "register";
+      successPanel.hidden = true;
+      document.querySelectorAll(".auth-tab").forEach((t) => {
+        const active = t.dataset.authTab === name;
+        t.classList.toggle("is-active", active);
+        t.setAttribute("aria-selected", String(active));
+      });
+    }
+    tabs.forEach((btn) => btn.addEventListener("click", () => showPanel(btn.dataset.authTab)));
+
+    wirePasswordToggles();
+    wireLivePasswordRequirements("register-password", "password-requirements");
+    wirePasswordSuggestions({
+      btnId: "generate-password-btn",
+      listId: "password-suggestions-list",
+      pwInputId: "register-password",
+      confirmInputId: "register-password-confirm"
+    });
+
+    // Envío: iniciar sesión (simulado, sin backend real)
+    loginForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const email = document.getElementById("login-email").value.trim();
+      const password = document.getElementById("login-password").value;
+      const errorEl = document.getElementById("login-error");
+
+      if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+        errorEl.textContent = "Ingresa un correo electrónico válido.";
+        errorEl.hidden = false;
+        return;
+      }
+      if (password.length < 8) {
+        errorEl.textContent = "La contraseña debe tener al menos 8 caracteres.";
+        errorEl.hidden = false;
+        return;
+      }
+      errorEl.hidden = true;
+
+      // Si ya existía una cuenta con ese correo en este navegador, conservamos
+      // su nombre y preferencias guardadas; si no, es la primera vez que entra.
+      const existing = getAuth();
+      const nombre = existing && existing.email === email ? existing.nombre : email.split("@")[0];
+      setAuth({ ...(existing && existing.email === email ? existing : {}), email, nombre, password });
+
+      loginForm.hidden = true;
+      document.getElementById("auth-success-title").textContent = "¡Bienvenido de vuelta!";
+      document.getElementById("auth-success-text").textContent = `Iniciaste sesión como ${email}.`;
+      successPanel.hidden = false;
+    });
+
+    // Envío: crear cuenta (simulado, sin backend real)
+    registerForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const nombre = document.getElementById("register-nombre").value.trim();
+      const email = document.getElementById("register-email").value.trim();
+      const password = document.getElementById("register-password").value;
+      const confirm = document.getElementById("register-password-confirm").value;
+      const errorEl = document.getElementById("register-error");
+
+      if (!nombre) {
+        errorEl.textContent = "Cuéntanos cómo te llamas.";
+        errorEl.hidden = false;
+        return;
+      }
+      if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+        errorEl.textContent = "Ingresa un correo electrónico válido.";
+        errorEl.hidden = false;
+        return;
+      }
+      const checks = passwordChecks(password);
+      if (!checks.length) {
+        errorEl.textContent = "La contraseña debe tener al menos 8 caracteres.";
+        errorEl.hidden = false;
+        return;
+      }
+      if (password !== confirm) {
+        errorEl.textContent = "Las contraseñas no coinciden.";
+        errorEl.hidden = false;
+        return;
+      }
+      errorEl.hidden = true;
+
+      setAuth({ email, nombre, password, categoriaFavorita: "", recordatorios: false });
+      registerForm.hidden = true;
+      document.getElementById("auth-success-title").textContent = `¡Cuenta creada, ${nombre}!`;
+      document.getElementById("auth-success-text").textContent = `Ya puedes iniciar sesión con ${email} la próxima vez.`;
+      successPanel.hidden = false;
+    });
+  }
+
+  /* ============================================================
+     12.6. PERFIL (editar datos, contraseña y preferencias)
+     ============================================================ */
+
+  function initProfilePage() {
+    const wrap = document.getElementById("perfil-wrap");
+    if (!wrap) return; // solo existe en pages/perfil.html
+    const sinSesion = document.getElementById("perfil-sin-sesion");
+
+    let auth = getAuth();
+    if (!auth) {
+      wrap.hidden = true;
+      sinSesion.hidden = false;
+      return;
+    }
+    wrap.hidden = false;
+    sinSesion.hidden = true;
+
+    function refreshHeader() {
+      document.getElementById("perfil-nombre-titulo").textContent = auth.nombre || "Mi perfil";
+      document.getElementById("perfil-email-subtitulo").textContent = auth.email || "";
+      document.getElementById("perfil-avatar").textContent = (auth.nombre || auth.email || "?").charAt(0).toUpperCase();
+    }
+    refreshHeader();
+
+    // Precargar datos y preferencias actuales
+    document.getElementById("perfil-nombre").value = auth.nombre || "";
+    document.getElementById("perfil-email").value = auth.email || "";
+    document.getElementById("perfil-categoria").value = auth.categoriaFavorita || "";
+    document.getElementById("perfil-recordatorios").checked = Boolean(auth.recordatorios);
+
+    // ---- Datos personales y preferencias ----
+    document.getElementById("perfil-datos-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const nombre = document.getElementById("perfil-nombre").value.trim();
+      const email = document.getElementById("perfil-email").value.trim();
+      const categoriaFavorita = document.getElementById("perfil-categoria").value;
+      const recordatorios = document.getElementById("perfil-recordatorios").checked;
+      const errorEl = document.getElementById("perfil-datos-error");
+      const successEl = document.getElementById("perfil-datos-success");
+      successEl.hidden = true;
+
+      if (!nombre) { errorEl.textContent = "El nombre no puede quedar vacío."; errorEl.hidden = false; return; }
+      if (!email || !/^\S+@\S+\.\S+$/.test(email)) { errorEl.textContent = "Ingresa un correo electrónico válido."; errorEl.hidden = false; return; }
+      errorEl.hidden = true;
+
+      auth = { ...auth, nombre, email, categoriaFavorita, recordatorios };
+      setAuth(auth);
+      refreshHeader();
+      successEl.hidden = false;
+    });
+
+    // ---- Cambiar contraseña ----
+    wirePasswordToggles();
+    wireLivePasswordRequirements("perfil-password-nueva", "perfil-password-requirements");
+    wirePasswordSuggestions({
+      btnId: "perfil-generate-password-btn",
+      listId: "perfil-password-suggestions-list",
+      pwInputId: "perfil-password-nueva",
+      confirmInputId: "perfil-password-confirmar"
+    });
+
+    document.getElementById("perfil-password-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const actual = document.getElementById("perfil-password-actual").value;
+      const nueva = document.getElementById("perfil-password-nueva").value;
+      const confirmar = document.getElementById("perfil-password-confirmar").value;
+      const errorEl = document.getElementById("perfil-password-error");
+      const successEl = document.getElementById("perfil-password-success");
+      successEl.hidden = true;
+
+      if (auth.password && actual !== auth.password) {
+        errorEl.textContent = "La contraseña actual no es correcta.";
+        errorEl.hidden = false;
+        return;
+      }
+      if (!passwordChecks(nueva).length) {
+        errorEl.textContent = "La nueva contraseña debe tener al menos 8 caracteres.";
+        errorEl.hidden = false;
+        return;
+      }
+      if (nueva !== confirmar) {
+        errorEl.textContent = "Las contraseñas nuevas no coinciden.";
+        errorEl.hidden = false;
+        return;
+      }
+      errorEl.hidden = true;
+
+      auth = { ...auth, password: nueva };
+      setAuth(auth);
+      document.getElementById("perfil-password-form").reset();
+      successEl.hidden = false;
+    });
+
+    // ---- Zona de riesgo ----
+    document.getElementById("perfil-logout-btn").addEventListener("click", () => {
+      if (confirm("¿Cerrar tu sesión?")) {
+        clearAuth();
+        window.location.href = "../index.html";
+      }
+    });
+    document.getElementById("perfil-delete-btn").addEventListener("click", () => {
+      if (confirm("¿Eliminar tu cuenta? Se cerrará tu sesión en este dispositivo.")) {
+        clearAuth();
+        window.location.href = "../index.html";
+      }
+    });
+  }
+
+  function initProfileIcon() {
+    const link = document.getElementById("profile-link");
+    if (!link) return;
+    const auth = getAuth();
+    if (auth) {
+      link.href = `${PAGES_DIR}perfil.html`;
+      link.setAttribute("aria-label", `Mi perfil (${auth.nombre || auth.email})`);
+    }
   }
 
   /* ============================================================

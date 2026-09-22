@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="base">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Iniciar sesión | Juntos</title>
+  <meta name="description" content="Inicia sesión o crea una cuenta en Juntos con tu correo y una contraseña segura.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&family=Press+Start+2P&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body class="auth-page">
+
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+
+  <!-- ============================================================
+       Interfaz propia: esta pantalla NO usa el header/nav/footer
+       del resto del sitio, a propósito. Es una experiencia aparte,
+       centrada solo en iniciar sesión o crear una cuenta.
+       ============================================================ -->
+  <main id="main" class="auth-screen">
+
+    <a href="../index.html" class="auth-brand" aria-label="Juntos — Volver al inicio">
+      <span class="logo-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="30" height="30">
+          <path d="M16 27C9 22 3 17.5 3 11.8 3 7.6 6.3 4.5 10.2 4.5c2.4 0 4.6 1.2 5.8 3.1 1.2-1.9 3.4-3.1 5.8-3.1 3.9 0 7.2 3.1 7.2 7.3 0 5.7-6 10.2-13 15.2z" fill="currentColor"/>
+        </svg>
+      </span>
+      <span class="logo-word">Juntos</span>
+    </a>
+
+    <div class="auth-card">
+
+      <!-- ============ TABS INICIAR SESIÓN / CREAR CUENTA ============ -->
+      <div class="auth-tabs" role="tablist" aria-label="Elegir entre iniciar sesión o crear cuenta">
+        <button type="button" class="auth-tab is-active" data-auth-tab="login" role="tab" aria-selected="true">Iniciar sesión</button>
+        <button type="button" class="auth-tab" data-auth-tab="register" role="tab" aria-selected="false">Crear cuenta</button>
+      </div>
+
+      <!-- ============ FORMULARIO: INICIAR SESIÓN ============ -->
+      <form id="login-form" class="auth-form" data-auth-panel="login" novalidate>
+        <p class="auth-intro">Ingresa con tu correo y contraseña para acceder a tus planes guardados.</p>
+
+        <div class="form-field">
+          <label for="login-email">Correo electrónico</label>
+          <input type="email" id="login-email" name="email" placeholder="tu@correo.com" required autocomplete="email">
+        </div>
+
+        <div class="form-field">
+          <label for="login-password">Contraseña</label>
+          <div class="password-input-wrap">
+            <input type="password" id="login-password" name="password" placeholder="Mínimo 8 caracteres" minlength="8" required autocomplete="current-password">
+            <button type="button" class="password-toggle" data-toggle-for="login-password" aria-label="Mostrar contraseña">👁</button>
+          </div>
+        </div>
+
+        <p class="auth-error" id="login-error" hidden></p>
+
+        <button type="submit" class="btn btn--primary btn--large auth-submit">Iniciar sesión</button>
+
+        <p class="auth-switch">¿No tienes cuenta? <button type="button" class="auth-switch-link" data-auth-tab="register">Crear una</button></p>
+      </form>
+
+      <!-- ============ FORMULARIO: CREAR CUENTA ============ -->
+      <form id="register-form" class="auth-form" data-auth-panel="register" hidden novalidate>
+        <p class="auth-intro">Crea tu cuenta con un correo y una contraseña de al menos 8 caracteres.</p>
+
+        <div class="form-field">
+          <label for="register-nombre">Nombre</label>
+          <input type="text" id="register-nombre" name="nombre" placeholder="¿Cómo te llamas?" required autocomplete="name">
+        </div>
+
+        <div class="form-field">
+          <label for="register-email">Correo electrónico</label>
+          <input type="email" id="register-email" name="email" placeholder="tu@correo.com" required autocomplete="email">
+        </div>
+
+        <div class="form-field">
+          <label for="register-password">Contraseña</label>
+          <div class="password-input-wrap">
+            <input type="password" id="register-password" name="password" placeholder="Mínimo 8 caracteres" minlength="8" required autocomplete="new-password">
+            <button type="button" class="password-toggle" data-toggle-for="register-password" aria-label="Mostrar contraseña">👁</button>
+          </div>
+
+          <ul class="password-requirements" id="password-requirements">
+            <li data-req="length">Al menos 8 caracteres</li>
+            <li data-req="upper">Una letra mayúscula</li>
+            <li data-req="number">Un número</li>
+            <li data-req="symbol">Un símbolo (ej. # . _ !)</li>
+          </ul>
+        </div>
+
+        <div class="form-field">
+          <label for="register-password-confirm">Confirmar contraseña</label>
+          <div class="password-input-wrap">
+            <input type="password" id="register-password-confirm" name="password_confirm" placeholder="Repite la contraseña" minlength="8" required autocomplete="new-password">
+            <button type="button" class="password-toggle" data-toggle-for="register-password-confirm" aria-label="Mostrar contraseña">👁</button>
+          </div>
+        </div>
+
+        <!-- ============ SUGERENCIAS DE CONTRASEÑA ============ -->
+        <div class="password-suggestions">
+          <div class="password-suggestions-head">
+            <span>¿No se te ocurre una contraseña?</span>
+            <button type="button" class="btn btn--ghost btn--small" id="generate-password-btn">🎲 Generar sugerencias</button>
+          </div>
+          <ul class="password-suggestions-list" id="password-suggestions-list"></ul>
+        </div>
+
+        <p class="auth-error" id="register-error" hidden></p>
+
+        <button type="submit" class="btn btn--primary btn--large auth-submit">Crear cuenta</button>
+
+        <p class="auth-switch">¿Ya tienes cuenta? <button type="button" class="auth-switch-link" data-auth-tab="login">Inicia sesión</button></p>
+      </form>
+
+      <!-- ============ CONFIRMACIÓN ============ -->
+      <div class="auth-success" id="auth-success" hidden>
+        <div class="auth-success-icon" aria-hidden="true">✅</div>
+        <h2 id="auth-success-title">¡Listo!</h2>
+        <p id="auth-success-text">Iniciaste sesión correctamente.</p>
+        <div class="auth-success-actions">
+          <a href="../index.html" class="btn btn--primary">Ir al inicio</a>
+          <a href="perfil.html" class="btn btn--ghost">Ver mi perfil</a>
+        </div>
+      </div>
+
+    </div>
+
+    <p class="auth-skip"><a href="../index.html">Seguir explorando sin iniciar sesión →</a></p>
+
+  </main>
+
+  <script src="../js/data.js"></script>
+  <script src="../js/script.js"></script>
+</body>
+</html>
