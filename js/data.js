@@ -1112,7 +1112,7 @@ window.IDEAS_DATA = [
     fecha: "2026-06-30",
     vistas: 12
   }
-   {
+  ,{
     id: 31,
     nombre: "Noche de comida internacional",
     descripcion: "Cada quien lleva o cocina un platillo de un país distinto, y entre todos arman un menú alrededor del mundo.",
